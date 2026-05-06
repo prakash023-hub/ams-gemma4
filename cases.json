@@ -1,0 +1,26 @@
+[
+  {
+    "case_id": "UTI-001",
+    "scenario_name": "Elderly UTI with renal impairment",
+    "patient": {"age": 72, "sex": "F", "weight_kg": 55, "creatinine_mg_dl": 1.4, "allergies": "none"},
+    "infection": {"site": "urinary tract", "presentation": "dysuria, fever 38.2C, suprapubic pain x 3 days"},
+    "culture": {"organism": "E. coli", "sensitivities": {"nitrofurantoin": "S", "ceftriaxone": "S", "ciprofloxacin": "R"}},
+    "expected": {"crcl": 31.5, "rejected": ["nitrofurantoin"], "recommended": "ceftriaxone"}
+  },
+  {
+    "case_id": "HAP-002",
+    "scenario_name": "ESBL Klebsiella HAP",
+    "patient": {"age": 65, "sex": "M", "weight_kg": 70, "creatinine_mg_dl": 1.8, "allergies": "penicillin rash"},
+    "infection": {"site": "lower respiratory", "presentation": "ICU ventilator day 5, fever, purulent secretions"},
+    "culture": {"organism": "Klebsiella pneumoniae ESBL+", "sensitivities": {"meropenem": "S", "piperacillin-tazobactam": "S", "ceftriaxone": "R"}},
+    "expected": {"crcl": 45, "rejected": ["ceftriaxone (R)"], "recommended": "meropenem 1g IV q12h renal adjusted"}
+  },
+  {
+    "case_id": "SSTI-003",
+    "scenario_name": "MRSA cellulitis",
+    "patient": {"age": 45, "sex": "M", "weight_kg": 80, "creatinine_mg_dl": 0.9, "allergies": "none"},
+    "infection": {"site": "right lower leg cellulitis with abscess", "presentation": "diabetic, 12x8cm redness, fluctuance"},
+    "culture": {"organism": "Staphylococcus aureus MRSA", "sensitivities": {"vancomycin": "S", "doxycycline": "S", "cotrimoxazole": "S", "clindamycin": "S"}},
+    "expected": {"crcl": 95, "rejected": [], "recommended": "doxycycline 100mg PO BID (Access tier preferred over IV vanco)"}
+  }
+]
