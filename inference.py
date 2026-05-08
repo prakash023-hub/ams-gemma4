@@ -38,15 +38,14 @@ def call_ollama(patient_case: str) -> str:
         return f"ERROR: {type(e).__name__}: {str(e)}"
 
 def call_gemini(patient_case: str) -> str:
-    import google.generativeai as genai
+    from google import genai
     master = load_master_prompt()
     full_prompt = build_full_prompt(master, patient_case)
     try:
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        response = model.generate_content(
-            full_prompt,
-            generation_config={"temperature": 0.2, "max_output_tokens": 3000}
+        client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=full_prompt
         )
         return response.text
     except Exception as e:
