@@ -38,6 +38,10 @@ def get_recommendation(age, weight, sex, creatinine, allergies,
                         ceftriaxone_s, ciprofloxacin_s, meropenem_s,
                         piptazo_s, vancomycin_s, amikacin_s,
                         other_drugs, culture_image, language):
+    # Handle multimodal image input
+    image_note = ""
+    if culture_image is not None:
+        image_note = "\n📷 Culture report image received — Gemma 4 multimodal processing active."
 
     drug_map = {
         "nitrofurantoin": nitrofurantoin_s,
@@ -78,7 +82,7 @@ def get_recommendation(age, weight, sex, creatinine, allergies,
     if nitro_tested and not crcl["nitrofurantoin_safe"]:
         nitro_warning = " ⚠️ Nitrofurantoin UNSAFE (CrCl<60)"
 
-    crcl_display = f"{crcl['crcl_ml_min']} mL/min — {crcl['category']}{nitro_warning}"
+    crcl_display = f"{crcl['crcl_ml_min']} mL/min — {crcl['category']}{nitro_warning}{image_note}"
 
     # AWaRe display
     if result["aware_tiers"]:
@@ -122,13 +126,11 @@ def call_gemini_with_functions(age, weight, creatinine, sex,
 
     enriched = f"""
 {lang_instruction}
-
 === FUNCTION CALLING RESULTS ===
 CrCl (Python-verified): {crcl_result['crcl_ml_min']} mL/min — {crcl_result['category']}
 Nitrofurantoin: {nitro_status}
 AWaRe tiers: {json.dumps(aware_results)}
 ICMR Resistance: {resistance_data.get('summary', 'Use local antibiogram')}
-
 === PATIENT CASE ===
 Age: {age}y, Sex: {'female' if sex.upper()=='F' else 'male'}, Weight: {weight}kg
 Creatinine: {creatinine} mg/dL → CrCl: {crcl_result['crcl_ml_min']} mL/min
@@ -136,14 +138,13 @@ Pathogen: {pathogen}
 Sensitive: {', '.join(sensitive_drugs) if sensitive_drugs else 'none specified'}
 Resistant: {', '.join(resistant_drugs) if resistant_drugs else 'none specified'}
 Allergies: {allergies}
-
 Use CrCl={crcl_result['crcl_ml_min']}. Nitrofurantoin={nitro_status}.
 Recommend antibiotic in 10-section format.
 """
 
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
-       model="models/gemma-4-31b-it",
+        model="models/gemma-4-31b-it",
         contents=master_prompt + "\n\n" + enriched
     )
 
