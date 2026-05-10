@@ -143,7 +143,7 @@ Recommend antibiotic in 10-section format.
 
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+       model="models/gemma-4-31b-it",
         contents=master_prompt + "\n\n" + enriched
     )
 
