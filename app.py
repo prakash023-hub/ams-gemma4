@@ -33,12 +33,13 @@ WARNING_HTML = """
 def section_header(icon, title):
     return f'<div style="background:linear-gradient(135deg,#1a3a5c,#2e75b6);color:white;padding:8px 16px;border-radius:8px;margin:12px 0 8px 0;font-weight:bold;font-size:15px">{icon} {title}</div>'
 
+
 def get_recommendation(age, weight, sex, creatinine, allergies,
                         pathogen, nitrofurantoin_s, cotrimoxazole_s,
                         ceftriaxone_s, ciprofloxacin_s, meropenem_s,
                         piptazo_s, vancomycin_s, amikacin_s,
                         other_drugs, culture_image, language):
-    # Handle multimodal image input
+
     image_note = ""
     if culture_image is not None:
         image_note = "\n📷 Culture report image received — Gemma 4 multimodal processing active."
@@ -64,7 +65,7 @@ def get_recommendation(age, weight, sex, creatinine, allergies,
         result = call_gemini_with_functions(
             int(age), float(weight), float(creatinine),
             sex[0], pathogen, sensitivities,
-            allergies or "none", language, gemini_key
+            allergies or "none", language, gemini_key, culture_image
         )
     else:
         from function_calling_v2 import ask_with_guaranteed_functions
@@ -76,7 +77,6 @@ def get_recommendation(age, weight, sex, creatinine, allergies,
 
     crcl = result["crcl"]
 
-    # Only show nitrofurantoin warning if it was actually tested
     nitro_tested = nitrofurantoin_s != "Not tested"
     nitro_warning = ""
     if nitro_tested and not crcl["nitrofurantoin_safe"]:
@@ -84,7 +84,6 @@ def get_recommendation(age, weight, sex, creatinine, allergies,
 
     crcl_display = f"{crcl['crcl_ml_min']} mL/min — {crcl['category']}{nitro_warning}{image_note}"
 
-    # AWaRe display
     if result["aware_tiers"]:
         aware_lines = []
         for drug, tier in result["aware_tiers"].items():
@@ -103,7 +102,7 @@ def get_recommendation(age, weight, sex, creatinine, allergies,
 
 def call_gemini_with_functions(age, weight, creatinine, sex,
                                 pathogen, sensitivities, allergies,
-                                language, api_key):
+                                language, api_key, culture_image=None):
     from google import genai
     import json
     from pathlib import Path
@@ -126,11 +125,13 @@ def call_gemini_with_functions(age, weight, creatinine, sex,
 
     enriched = f"""
 {lang_instruction}
+
 === FUNCTION CALLING RESULTS ===
 CrCl (Python-verified): {crcl_result['crcl_ml_min']} mL/min — {crcl_result['category']}
 Nitrofurantoin: {nitro_status}
 AWaRe tiers: {json.dumps(aware_results)}
 ICMR Resistance: {resistance_data.get('summary', 'Use local antibiogram')}
+
 === PATIENT CASE ===
 Age: {age}y, Sex: {'female' if sex.upper()=='F' else 'male'}, Weight: {weight}kg
 Creatinine: {creatinine} mg/dL → CrCl: {crcl_result['crcl_ml_min']} mL/min
@@ -138,42 +139,58 @@ Pathogen: {pathogen}
 Sensitive: {', '.join(sensitive_drugs) if sensitive_drugs else 'none specified'}
 Resistant: {', '.join(resistant_drugs) if resistant_drugs else 'none specified'}
 Allergies: {allergies}
+
 Use CrCl={crcl_result['crcl_ml_min']}. Nitrofurantoin={nitro_status}.
 Recommend antibiotic in 10-section format.
 """
-client = genai.Client(api_key=api_key)
 
-if culture_image is not None:
-    import io
-    import base64
-    img_byte_arr = io.BytesIO()
-    culture_image.save(img_byte_arr, format='PNG')
-    img_bytes = img_byte_arr.getvalue()
-    img_b64 = base64.b64encode(img_bytes).decode()
+    client = genai.Client(api_key=api_key)
 
-    from google.genai import types
-    response = client.models.generate_content(
-        model="models/gemma-4-31b-it",
-        contents=[
-            types.Part.from_bytes(
-                data=img_bytes,
-                mime_type="image/png"
-            ),
-            master_prompt + "\n\n" + enriched
-        ]
-    )
-else:
-    response = client.models.generate_content(
-        model="models/gemma-4-31b-it",
-        contents=master_prompt + "\n\n" + enriched
-    )
+    try:
+        if culture_image is not None:
+            import io
+            from google.genai import types
+            img_byte_arr = io.BytesIO()
+            culture_image.save(img_byte_arr, format='PNG')
+            img_bytes = img_byte_arr.getvalue()
+            response = client.models.generate_content(
+                model="models/gemma-4-31b-it",
+                contents=[
+                    types.Part.from_bytes(
+                        data=img_bytes,
+                        mime_type="image/png"
+                    ),
+                    master_prompt + "\n\n" + enriched
+                ]
+            )
+        else:
+            response = client.models.generate_content(
+                model="models/gemma-4-31b-it",
+                contents=master_prompt + "\n\n" + enriched
+            )
 
-    return {
-        "crcl": crcl_result,
-        "resistance": resistance_data,
-        "aware_tiers": aware_results,
-        "recommendation": response.text
-    }
+        return {
+            "crcl": crcl_result,
+            "resistance": resistance_data,
+            "aware_tiers": aware_results,
+            "recommendation": response.text
+        }
+
+    except Exception as e:
+        error_str = str(e)
+        if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+            msg = "⏳ API quota temporarily exceeded. Please wait 60 seconds and try again."
+        elif "500" in error_str or "INTERNAL" in error_str:
+            msg = "⚠️ Server error. Please try again in a moment."
+        else:
+            msg = f"ERROR: {type(e).__name__}: {error_str}"
+
+        return {
+            "crcl": crcl_result,
+            "resistance": resistance_data,
+            "aware_tiers": aware_results,
+            "recommendation": msg
+        }
 
 
 EXAMPLES = [
