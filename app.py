@@ -141,8 +141,28 @@ Allergies: {allergies}
 Use CrCl={crcl_result['crcl_ml_min']}. Nitrofurantoin={nitro_status}.
 Recommend antibiotic in 10-section format.
 """
+client = genai.Client(api_key=api_key)
 
-    client = genai.Client(api_key=api_key)
+if culture_image is not None:
+    import io
+    import base64
+    img_byte_arr = io.BytesIO()
+    culture_image.save(img_byte_arr, format='PNG')
+    img_bytes = img_byte_arr.getvalue()
+    img_b64 = base64.b64encode(img_bytes).decode()
+
+    from google.genai import types
+    response = client.models.generate_content(
+        model="models/gemma-4-31b-it",
+        contents=[
+            types.Part.from_bytes(
+                data=img_bytes,
+                mime_type="image/png"
+            ),
+            master_prompt + "\n\n" + enriched
+        ]
+    )
+else:
     response = client.models.generate_content(
         model="models/gemma-4-31b-it",
         contents=master_prompt + "\n\n" + enriched
